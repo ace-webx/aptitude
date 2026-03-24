@@ -746,14 +746,25 @@ function verifyAdmin(){
   }
   const payload = JSON.stringify({action:'verifyAdmin', password:pwd});
   const getUrl  = url + '?data=' + encodeURIComponent(payload);
-  const xhr = new XMLHttpRequest();
-  xhr.open('GET', getUrl, true);
-  xhr.timeout = 30000;
-  xhr.onload = function(){
+  // Use script tag injection to bypass CORS — works from any origin
+  const cbName = 'aceAdminCb_' + Date.now();
+  const timeoutId = setTimeout(function(){
+    cleanup();
     btn.textContent='Unlock →'; btn.disabled=false;
-    let r;
-    try{ r=JSON.parse(xhr.responseText); }
-    catch(e){ errEl.textContent='Bad response: '+xhr.responseText.substring(0,100); errEl.style.display='block'; return; }
+    errEl.textContent='Request timed out. Try again.';
+    errEl.style.display='block';
+  }, 30000);
+
+  function cleanup(){
+    clearTimeout(timeoutId);
+    delete window[cbName];
+    const old = document.getElementById('ace-jsonp');
+    if(old) old.parentNode.removeChild(old);
+  }
+
+  window[cbName] = function(r){
+    cleanup();
+    btn.textContent='Unlock →'; btn.disabled=false;
     if(r.status==='auth_ok'){
       sessionStorage.setItem('aceweb_admin_session', JSON.stringify({token:r.token, expires:Date.now()+7200000}));
       document.getElementById('admin-pass-input').value='';
@@ -766,9 +777,17 @@ function verifyAdmin(){
       document.getElementById('admin-pass-input').focus();
     }
   };
-  xhr.onerror   = function(){ btn.textContent='Unlock →'; btn.disabled=false; errEl.textContent='Network error.'; errEl.style.display='block'; };
-  xhr.ontimeout = function(){ btn.textContent='Unlock →'; btn.disabled=false; errEl.textContent='Timed out. Check URL.'; errEl.style.display='block'; };
-  xhr.send();
+
+  const script = document.createElement('script');
+  script.id  = 'ace-jsonp';
+  script.src = getUrl + '&callback=' + cbName;
+  script.onerror = function(){
+    cleanup();
+    btn.textContent='Unlock →'; btn.disabled=false;
+    errEl.textContent='Network error. Check internet connection.';
+    errEl.style.display='block';
+  };
+  document.head.appendChild(script);
 }
 
 function isAdminSessionValid(){
