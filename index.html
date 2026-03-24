@@ -574,20 +574,7 @@
 </div>
 
 <script>
-// ===== SECURITY LAYER =====
-document.addEventListener('contextmenu',e=>e.preventDefault());
-document.addEventListener('keydown',e=>{
-  if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&'IJCK'.includes(e.key))||(e.metaKey&&e.altKey&&'IJC'.includes(e.key))||(e.ctrlKey&&'US'.includes(e.key))){
-    e.preventDefault();e.stopPropagation();return false;
-  }
-});
-setInterval(()=>{
-  const isOpen=(window.outerWidth-window.innerWidth>300)||(window.outerHeight-window.innerHeight>300);
-  const onTest=document.getElementById('screen-test').classList.contains('active');
-  const onAdmin=document.getElementById('screen-admin').classList.contains('active');
-  // Only show overlay during test, never on admin panel
-  document.getElementById('devtools-overlay').classList.toggle('show',isOpen&&onTest&&!onAdmin);
-},800);
+// Security layer removed — answers and password are server-side
 
 // ===== QUESTION BANK (no ans field) =====
 const CORE=[
