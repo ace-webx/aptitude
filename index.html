@@ -739,55 +739,29 @@ function verifyAdmin(){
   const errEl = document.getElementById('admin-error');
   if(!pwd){ errEl.textContent='Please enter password.'; errEl.style.display='block'; return; }
   btn.textContent='Verifying...'; btn.disabled=true; errEl.style.display='none';
-  const url = SHEET_URL_VAL();
-  if(!url || url.indexOf('script.google.com')===-1){
-    errEl.textContent='Apps Script URL not set.'; errEl.style.display='block';
-    btn.textContent='Unlock →'; btn.disabled=false; return;
-  }
-  const payload = JSON.stringify({action:'verifyAdmin', password:pwd});
-  const getUrl  = url + '?data=' + encodeURIComponent(payload);
-  // Use script tag injection to bypass CORS — works from any origin
-  const cbName = 'aceAdminCb_' + Date.now();
-  const timeoutId = setTimeout(function(){
-    cleanup();
-    btn.textContent='Unlock →'; btn.disabled=false;
-    errEl.textContent='Request timed out. Try again.';
-    errEl.style.display='block';
-  }, 30000);
 
-  function cleanup(){
-    clearTimeout(timeoutId);
-    delete window[cbName];
-    const old = document.getElementById('ace-jsonp');
-    if(old) old.parentNode.removeChild(old);
+  // SHA-256 hash comparison — password never stored in plain text
+  // To change password: generate new SHA-256 hash and update ADMIN_HASH below
+  const ADMIN_HASH = '612186f67b8c0a3b206f14aa91fc3daea8f66ce56b935a055b5dfb86b415483c';
+
+  async function sha256(str){
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
   }
 
-  window[cbName] = function(r){
-    cleanup();
+  sha256(pwd).then(function(hash){
     btn.textContent='Unlock →'; btn.disabled=false;
-    if(r.status==='auth_ok'){
-      sessionStorage.setItem('aceweb_admin_session', JSON.stringify({token:r.token, expires:Date.now()+7200000}));
+    if(hash === ADMIN_HASH){
       document.getElementById('admin-pass-input').value='';
       document.getElementById('admin-modal').classList.remove('show');
       setTimeout(function(){ _goToAdminPanel(); }, 200);
     } else {
-      errEl.textContent = r.message||('Server said: '+r.status);
+      errEl.textContent='Incorrect password. Please try again.';
       errEl.style.display='block';
       document.getElementById('admin-pass-input').value='';
       document.getElementById('admin-pass-input').focus();
     }
-  };
-
-  const script = document.createElement('script');
-  script.id  = 'ace-jsonp';
-  script.src = getUrl + '&callback=' + cbName;
-  script.onerror = function(){
-    cleanup();
-    btn.textContent='Unlock →'; btn.disabled=false;
-    errEl.textContent='Network error. Check internet connection.';
-    errEl.style.display='block';
-  };
-  document.head.appendChild(script);
+  });
 }
 
 function isAdminSessionValid(){
@@ -982,39 +956,27 @@ function testConnection() {
 
 function changeAdminPassword(currentPwd, newPwd) {
   const errEl = document.getElementById('pwd-error');
-  const url = SHEET_URL_VAL();
-  if (!url){ errEl.textContent='Apps Script URL not configured.'; errEl.style.display='block'; return; }
-
-  errEl.style.display='none';
   const savedEl = document.getElementById('settings-saved');
-  savedEl.textContent = '⏳ Verifying and updating password...';
-  savedEl.classList.add('show');
 
-  const payload = JSON.stringify({ action:'changePassword', currentPassword:currentPwd, newPassword:newPwd });
-  const xhr = new XMLHttpRequest();
-  xhr.open('GET', url + '?data=' + encodeURIComponent(payload), true);
-  xhr.timeout = 15000;
-  xhr.onload = function(){
-    let result;
-    try { result = JSON.parse(xhr.responseText); } catch(e){ result={status:'error',message:'Server error'}; }
-    if(result.status === 'password_changed'){
-      savedEl.textContent = '✓ Password changed successfully. Use new password next login.';
-      setTimeout(()=>savedEl.classList.remove('show'), 4000);
-      document.getElementById('set-pwd-current').value='';
-      document.getElementById('set-pwd-new').value='';
-      document.getElementById('set-pwd-confirm').value='';
-    } else {
-      savedEl.classList.remove('show');
-      errEl.textContent = result.message || 'Failed to change password.';
-      errEl.style.display='block';
+  async function sha256(str){
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+
+  const ADMIN_HASH = '612186f67b8c0a3b206f14aa91fc3daea8f66ce56b935a055b5dfb86b415483c';
+
+  sha256(currentPwd).then(function(currentHash){
+    if(currentHash !== ADMIN_HASH){
+      errEl.textContent='Current password is incorrect.';
+      errEl.style.display='block'; return;
     }
-  };
-  xhr.onerror = xhr.ontimeout = function(){
-    savedEl.classList.remove('show');
-    errEl.textContent='Could not reach server. Check connection.';
-    errEl.style.display='block';
-  };
-  xhr.send();
+    sha256(newPwd).then(function(newHash){
+      savedEl.textContent='✓ New password hash: ' + newHash;
+      savedEl.style.display='block';
+      savedEl.innerHTML = '✓ New password hash generated:<br><small style="font-family:monospace;font-size:11px;word-break:break-all;">' + newHash + '</small><br><small>Copy this hash and update ADMIN_HASH in the HTML file, then re-upload to GitHub.</small>';
+      savedEl.classList.add('show');
+    });
+  });
 }
 
 function saveSettings() {
