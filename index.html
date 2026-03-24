@@ -1497,14 +1497,22 @@ function sendToServer(timeTaken){
   document.getElementById('sections-result').innerHTML='<p style="color:var(--muted);text-align:center;padding:20px 0">Calculating your results...</p>';
   document.getElementById('recommendation-text').textContent='';
   document.getElementById('results-actions').style.visibility='hidden';
+  // Encode secKey as number to keep URL short for JSONP
+  const SK={core:0,developer_role:1,developer_sit:2,bidder_role:3,bidder_sit:4,
+             designer_role:5,designer_sit:6,qa_role:7,qa_sit:8};
+  const structuredAns = ST.questions.map((q,idx)=>({
+    k: SK[q.secKey]!==undefined ? SK[q.secKey] : q.secKey,
+    i: q.origIdx,
+    a: ST.answers[idx]
+  }));
   ST._payload=JSON.stringify({
-    timestamp: new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}),
-    name:       ST.name,
-    role_key:   ST.role,
-    role_label: RN[ST.role],
-    experience: EN[ST.exp],
-    answers:    ST.answers,
-    timeTaken:  timeTaken
+    ts: new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}),
+    n:  ST.name,
+    rk: ST.role,
+    rl: RN[ST.role],
+    ex: EN[ST.exp],
+    ans: structuredAns,
+    t:  timeTaken
   });
   doFetch();
 }
