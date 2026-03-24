@@ -383,7 +383,7 @@
     <ul class="rules-list">
       <li>You have <strong id="inst-time">~26 minutes</strong> to complete all 30 questions</li>
       <li>Each question has exactly one correct answer</li>
-      <li>Each question has its own timer — <strong>60s</strong> for Core &amp; Situational, <strong>45s</strong> for Technical</li>
+      <li>Each question has its own timer — 60s for Core &amp; Situational, 45s for Technical</li>
       <li>Unanswered questions auto-advance when time runs out</li>
       <li>Your results and section-wise breakdown are shown immediately</li>
       <li>Do not refresh or close this page during the test</li>
@@ -1303,7 +1303,7 @@ function startInstructions(){
   if(!e){alert('Please select your experience level.');return;}
   ST.name=n;ST.role=r;ST.exp=e;
   document.getElementById('inst-meta-label').textContent=`${n}  ·  ${RN[r]}  ·  ${EN[e]}`;
-  document.getElementById('inst-time').textContent='~26 minutes (60s/45s/60s per question)';
+  document.getElementById('inst-time').textContent='~26 minutes';
   showScreen('screen-instructions');
 }
 
