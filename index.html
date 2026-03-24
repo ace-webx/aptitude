@@ -748,56 +748,39 @@ function closeAdminModal(){document.getElementById('admin-modal').classList.remo
 
 function verifyAdmin(){
   const pwd = document.getElementById('admin-pass-input').value;
-  if(!pwd){ document.getElementById('admin-error').textContent='Please enter password.'; document.getElementById('admin-error').style.display='block'; return; }
-
   const btn = document.querySelector('#admin-modal .btn-primary');
   const errEl = document.getElementById('admin-error');
-  btn.textContent = 'Verifying...';
-  btn.disabled = true;
-  errEl.style.display = 'none';
-
+  if(!pwd){ errEl.textContent='Please enter password.'; errEl.style.display='block'; return; }
+  btn.textContent='Verifying...'; btn.disabled=true; errEl.style.display='none';
   const url = SHEET_URL_VAL();
-  if(!url || url.indexOf('script.google.com') === -1){
-    errEl.textContent='Apps Script URL not configured. Go to Admin → Settings and paste your URL first.';
-    errEl.style.display='block'; btn.textContent='Unlock →'; btn.disabled=false; return;
+  if(!url || url.indexOf('script.google.com')===-1){
+    errEl.textContent='Apps Script URL not set.'; errEl.style.display='block';
+    btn.textContent='Unlock →'; btn.disabled=false; return;
   }
-
-  // Send password to server for verification — never compared in browser
-  const payload = JSON.stringify({ action:'verifyAdmin', password: pwd });
-  const encoded = encodeURIComponent(payload);
-
+  const payload = JSON.stringify({action:'verifyAdmin', password:pwd});
+  const getUrl  = url + '?data=' + encodeURIComponent(payload);
   const xhr = new XMLHttpRequest();
-  xhr.open('GET', url + '?data=' + encoded, true);
-  xhr.timeout = 15000;
-
+  xhr.open('GET', getUrl, true);
+  xhr.timeout = 30000;
   xhr.onload = function(){
-    btn.textContent = 'Unlock →';
-    btn.disabled = false;
-    let result;
-    try { result = JSON.parse(xhr.responseText); } catch(e){
-      errEl.textContent = 'Server error. Try again.';
-      errEl.style.display = 'block'; return;
-    }
-    if(result.status === 'auth_ok'){
-      // Store session token — expires in 2 hours
-      const session = { token: result.token, expires: Date.now() + 2*60*60*1000 };
-      sessionStorage.setItem('aceweb_admin_session', JSON.stringify(session));
-      closeAdminModal();
+    btn.textContent='Unlock →'; btn.disabled=false;
+    let r;
+    try{ r=JSON.parse(xhr.responseText); }
+    catch(e){ errEl.textContent='Bad response: '+xhr.responseText.substring(0,100); errEl.style.display='block'; return; }
+    if(r.status==='auth_ok'){
+      sessionStorage.setItem('aceweb_admin_session', JSON.stringify({token:r.token, expires:Date.now()+7200000}));
       document.getElementById('admin-pass-input').value='';
-      // Go directly to admin panel — skip session re-check
-      _goToAdminPanel();
+      document.getElementById('admin-modal').classList.remove('show');
+      setTimeout(function(){ _goToAdminPanel(); }, 200);
     } else {
-      errEl.textContent = result.message || 'Incorrect password.';
-      errEl.style.display = 'block';
+      errEl.textContent = r.message||('Server said: '+r.status);
+      errEl.style.display='block';
       document.getElementById('admin-pass-input').value='';
       document.getElementById('admin-pass-input').focus();
     }
   };
-  xhr.onerror = xhr.ontimeout = function(){
-    btn.textContent = 'Unlock →'; btn.disabled = false;
-    errEl.textContent = 'Could not reach server. Check internet connection.';
-    errEl.style.display = 'block';
-  };
+  xhr.onerror   = function(){ btn.textContent='Unlock →'; btn.disabled=false; errEl.textContent='Network error.'; errEl.style.display='block'; };
+  xhr.ontimeout = function(){ btn.textContent='Unlock →'; btn.disabled=false; errEl.textContent='Timed out. Check URL.'; errEl.style.display='block'; };
   xhr.send();
 }
 
@@ -816,15 +799,16 @@ function _goToAdminPanel(){
     const el = document.getElementById('session-info');
     if(el) el.textContent = '🔒 Session expires in ' + minsLeft + ' min';
   } catch(e){}
-  if (!_cachedAnswerKeys) fetchAnswerKeys();
   document.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.admin-nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-questions').classList.add('active');
   document.querySelectorAll('.admin-nav-btn')[0].classList.add('active');
   _qeRole = 'core';
   document.querySelectorAll('#qe-role-tabs .role-tab').forEach((b,i)=>b.classList.toggle('active',i===0));
-  renderQE();
+  try { renderQE(); } catch(e){ console.log('renderQE error:', e); }
   showScreen('screen-admin');
+  // Fetch answer keys in background after panel opens
+  setTimeout(function(){ if(!_cachedAnswerKeys) fetchAnswerKeys(); }, 500);
 }
 
 function openAdminPanel(){
@@ -837,15 +821,16 @@ function openAdminPanel(){
     if(el) el.textContent = '🔒 Session expires in ' + minsLeft + ' min';
   } catch(e){}
   // Fetch answer keys from server (only available to authenticated admin)
-  if (!_cachedAnswerKeys) fetchAnswerKeys();
   document.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.admin-nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-questions').classList.add('active');
   document.querySelectorAll('.admin-nav-btn')[0].classList.add('active');
   _qeRole = 'core';
   document.querySelectorAll('#qe-role-tabs .role-tab').forEach((b,i)=>b.classList.toggle('active',i===0));
-  renderQE();
+  try { renderQE(); } catch(e){ console.log('renderQE error:', e); }
   showScreen('screen-admin');
+  // Fetch answer keys in background after panel opens
+  setTimeout(function(){ if(!_cachedAnswerKeys) fetchAnswerKeys(); }, 500);
 }
 let _aRole='developer',_aFilter='all';
 function setAdminRole(r,el){_aRole=r;document.querySelectorAll('.role-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderAdmin();}
@@ -1347,6 +1332,23 @@ function syncConfig(){ SHEET_URL=SHEET_URL_VAL(); TIMER_MINS=TIMER_MINS_VAL(); }
 syncConfig();
 
 // ===== SCREENS =====
+function fetchAnswerKeys(){
+  const url     = SHEET_URL_VAL();
+  const session = JSON.parse(sessionStorage.getItem('aceweb_admin_session')||'{}');
+  if(!url || !session.token) return;
+  const payload = JSON.stringify({ action:'getAnswerKeys', token: session.token });
+  const xhr = new XMLHttpRequest();
+  xhr.open('GET', url + '?data=' + encodeURIComponent(payload), true);
+  xhr.timeout = 15000;
+  xhr.onload = function(){
+    try {
+      const r = JSON.parse(xhr.responseText);
+      if(r.status === 'ok' && r.keys) _cachedAnswerKeys = r.keys;
+    } catch(e){}
+  };
+  xhr.send();
+}
+
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
