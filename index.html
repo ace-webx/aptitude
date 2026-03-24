@@ -1535,7 +1535,7 @@ function doFetch(){
     cleanup();
     done();
     showServerError('Request timed out (45s). Check Apps Script URL in Admin → Settings.');
-  }, 45000);
+  }, 8000);
 
   function cleanup(){
     clearTimeout(timeoutId);
@@ -1555,7 +1555,7 @@ function doFetch(){
   script.src = url + '?data=' + encodeURIComponent(ST._payload) + '&callback=' + cbName;
   script.onerror = function(){
     cleanup(); done();
-    showServerError('Network error. Check internet connection.');
+    showServerError('Script load failed. URL may be blocked.\nURL length: ' + script.src.length + ' chars');
   };
   document.head.appendChild(script);
 }
