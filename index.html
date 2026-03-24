@@ -1490,7 +1490,7 @@ function submitTest(){
 function sendToServer(timeTaken){
   showScreen('screen-results');
   document.getElementById('result-meta').textContent=`${ST.name}  ·  ${RN[ST.role]}  ·  ${EN[ST.exp]}`;
-  showSaveStatus('saving','Submitting and scoring your test...');
+  showSaveStatus('saving','Submitting and scoring... (0s)');
   document.getElementById('score-circle').style.visibility='hidden';
   document.getElementById('band-label').textContent='';
   document.getElementById('score-detail').textContent='';
@@ -1519,6 +1519,13 @@ function sendToServer(timeTaken){
 
 function doFetch(){
   const url = SHEET_URL_VAL();
+  // Show URL being used for debugging
+  const saveMsg = document.getElementById('save-msg');
+  if(saveMsg) saveMsg.title = 'URL: ' + url;
+  if(!url || url.indexOf('script.google.com') === -1){
+    showServerError('Apps Script URL not configured correctly.\nURL: ' + url);
+    return;
+  }
   let secs = 0;
   if(ST._countInterval) clearInterval(ST._countInterval);
   ST._countInterval = setInterval(()=>{
@@ -1535,7 +1542,7 @@ function doFetch(){
     cleanup();
     done();
     showServerError('Request timed out (45s). Check Apps Script URL in Admin → Settings.');
-  }, 8000);
+  }, 10000);
 
   function cleanup(){
     clearTimeout(timeoutId);
