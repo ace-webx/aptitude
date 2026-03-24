@@ -784,7 +784,8 @@ function verifyAdmin(){
       sessionStorage.setItem('aceweb_admin_session', JSON.stringify(session));
       closeAdminModal();
       document.getElementById('admin-pass-input').value='';
-      openAdminPanel();
+      // Go directly to admin panel — skip session re-check
+      _goToAdminPanel();
     } else {
       errEl.textContent = result.message || 'Incorrect password.';
       errEl.style.display = 'block';
@@ -805,6 +806,25 @@ function isAdminSessionValid(){
     const s = JSON.parse(sessionStorage.getItem('aceweb_admin_session') || '{}');
     return s.token && s.expires && Date.now() < s.expires;
   } catch(e){ return false; }
+}
+
+function _goToAdminPanel(){
+  // Called directly after successful login — no session re-check needed
+  try {
+    const s = JSON.parse(sessionStorage.getItem('aceweb_admin_session')||'{}');
+    const minsLeft = Math.round((s.expires - Date.now()) / 60000);
+    const el = document.getElementById('session-info');
+    if(el) el.textContent = '🔒 Session expires in ' + minsLeft + ' min';
+  } catch(e){}
+  if (!_cachedAnswerKeys) fetchAnswerKeys();
+  document.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.admin-nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-questions').classList.add('active');
+  document.querySelectorAll('.admin-nav-btn')[0].classList.add('active');
+  _qeRole = 'core';
+  document.querySelectorAll('#qe-role-tabs .role-tab').forEach((b,i)=>b.classList.toggle('active',i===0));
+  renderQE();
+  showScreen('screen-admin');
 }
 
 function openAdminPanel(){
