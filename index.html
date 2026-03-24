@@ -582,9 +582,11 @@ document.addEventListener('keydown',e=>{
   }
 });
 setInterval(()=>{
-  const isOpen=(window.outerWidth-window.innerWidth>160)||(window.outerHeight-window.innerHeight>160);
+  const isOpen=(window.outerWidth-window.innerWidth>300)||(window.outerHeight-window.innerHeight>300);
   const onTest=document.getElementById('screen-test').classList.contains('active');
-  document.getElementById('devtools-overlay').classList.toggle('show',isOpen&&onTest);
+  const onAdmin=document.getElementById('screen-admin').classList.contains('active');
+  // Only show overlay during test, never on admin panel
+  document.getElementById('devtools-overlay').classList.toggle('show',isOpen&&onTest&&!onAdmin);
 },800);
 
 // ===== QUESTION BANK (no ans field) =====
@@ -755,7 +757,10 @@ function verifyAdmin(){
   errEl.style.display = 'none';
 
   const url = SHEET_URL_VAL();
-  if(!url){ errEl.textContent='Apps Script URL not configured.'; errEl.style.display='block'; btn.textContent='Unlock →'; btn.disabled=false; return; }
+  if(!url || url.indexOf('script.google.com') === -1){
+    errEl.textContent='Apps Script URL not configured. Go to Admin → Settings and paste your URL first.';
+    errEl.style.display='block'; btn.textContent='Unlock →'; btn.disabled=false; return;
+  }
 
   // Send password to server for verification — never compared in browser
   const payload = JSON.stringify({ action:'verifyAdmin', password: pwd });
@@ -1338,9 +1343,7 @@ function startInstructions(){
   if(!e){alert('Please select your experience level.');return;}
   ST.name=n;ST.role=r;ST.exp=e;
   document.getElementById('inst-meta-label').textContent=`${n}  ·  ${RN[r]}  ·  ${EN[e]}`;
-  const mins=TIMER_MINS_VAL()[r]||25;
-  document.getElementById('stat-minutes').textContent=mins;
-  document.getElementById('inst-time').textContent=mins+' minutes';
+  document.getElementById('inst-time').textContent='~26 minutes (60s/45s/60s per question)';
   showScreen('screen-instructions');
 }
 
