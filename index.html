@@ -863,95 +863,65 @@ function loadSettingsIntoForm() {
 function testConnection() {
   const btn = document.getElementById('test-conn-btn');
   const res = document.getElementById('conn-result');
-
-  // Read directly from the input field — no need to save first
   const inputUrl = document.getElementById('set-sheet-url').value.trim();
   const url = inputUrl || SHEET_URL_VAL();
 
-  if (!url) {
-    res.className = 'conn-result show err';
-    res.textContent = '✗ No Apps Script URL found. Paste your URL in the field above.';
-    return;
-  }
-  if (!url.startsWith('https://script.google.com/')) {
-    res.className = 'conn-result show err';
-    res.textContent = '✗ Invalid URL. Must start with https://script.google.com/';
-    return;
-  }
-  if (!url.endsWith('/exec')) {
-    res.className = 'conn-result show err';
-    res.innerHTML = '✗ URL must end with <code style="background:var(--card);padding:2px 6px;border-radius:4px;">/exec</code><br><small>Your URL: ' + url.slice(-30) + '</small>';
-    return;
-  }
+  if(!url){ res.className='conn-result show err'; res.textContent='✗ No URL configured.'; return; }
+  if(!url.startsWith('https://script.google.com/')){
+    res.className='conn-result show err'; res.textContent='✗ Invalid URL.'; return; }
+  if(!url.endsWith('/exec')){
+    res.className='conn-result show err'; res.textContent='✗ URL must end with /exec'; return; }
 
-  // Auto-save the URL to localStorage so it persists
-  if (inputUrl) {
-    const s = loadSettings();
-    s.sheetUrl = inputUrl;
-    localStorage.setItem('aceweb_settings', JSON.stringify(s));
-    syncConfig();
-  }
+  if(inputUrl){ const s=loadSettings(); s.sheetUrl=inputUrl; localStorage.setItem('aceweb_settings',JSON.stringify(s)); syncConfig(); }
 
-  btn.disabled = true;
-  btn.textContent = '⏳ Sending...';
-  res.className = 'conn-result show loading';
-  res.textContent = 'Sending dummy test result to Google Sheets...';
+  btn.disabled=true; btn.textContent='⏳ Sending...';
+  res.className='conn-result show loading'; res.textContent='Sending test result...';
 
-  // Structured test answers: pick first 10 core, 15 bidder_role, 5 bidder_sit
   const testAnswers = [
-    ...[0,1,2,3,4,5,6,7,8,9].map(i=>({secKey:'core',        qIdx:i, ans:0})),
+    ...[0,1,2,3,4,5,6,7,8,9].map(i=>({secKey:'core', qIdx:i, ans:0})),
     ...[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14].map(i=>({secKey:'bidder_role', qIdx:i, ans:0})),
-    ...[0,1,2,3,4].map(i=>({secKey:'bidder_sit',  qIdx:i, ans:0}))
+    ...[0,1,2,3,4].map(i=>({secKey:'bidder_sit', qIdx:i, ans:0}))
   ];
   const dummy = JSON.stringify({
-    timestamp:  new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}),
-    name:       '🔧 Connection Test',
-    role_key:   'bidder',
-    role_label: 'Bidder / Business Development',
-    experience: 'Test',
-    answers:    testAnswers,
-    timeTaken:  '0m 0s'
+    timestamp: new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}),
+    name:'🔧 Connection Test', role_key:'bidder', role_label:'Bidder / Business Development',
+    experience:'Test', answers:testAnswers, timeTaken:'0m 0s'
   });
 
-  const encoded = encodeURIComponent(dummy);
-  const getUrl  = url + '?data=' + encoded;
+  const cbName = 'aceConnCb_' + Date.now();
+  const timeoutId = setTimeout(function(){
+    cleanup();
+    btn.disabled=false; btn.textContent='🔌 Send Test Result to Sheet';
+    res.className='conn-result show err'; res.textContent='✗ Timed out. Check URL.';
+  }, 30000);
 
-  const xhr = new XMLHttpRequest();
-  xhr.open('GET', getUrl, true);
-  xhr.timeout = 30000;
+  function cleanup(){
+    clearTimeout(timeoutId); delete window[cbName];
+    const old=document.getElementById('ace-conn-jsonp');
+    if(old) old.parentNode.removeChild(old);
+  }
 
-  xhr.onload = function() {
-    btn.disabled = false;
-    btn.textContent = '🔌 Send Test Result to Sheet';
-    let result;
-    try { result = JSON.parse(xhr.responseText); } catch(e) {
-      res.className = 'conn-result show err';
-      res.innerHTML = '✗ Bad response from server (HTTP ' + xhr.status + ').<br><small>Raw: ' + xhr.responseText.substring(0,120) + '</small><br><br>Fix: Re-deploy Apps Script → Execute as Me → Anyone can access.';
-      return;
-    }
-    if (result.status === 'success') {
-      res.className = 'conn-result show ok';
-      res.innerHTML = '✓ Connection successful! A test row was added to your Google Sheet.<br>' +
-        '<small>Score: ' + result.totalScore + '/30 (' + result.percentage + '%) · Band: ' + result.band + '</small><br>' +
-        '<small style="color:var(--muted)">You can delete the "🔧 Connection Test" row from the sheet.</small>';
+  window[cbName] = function(result){
+    cleanup();
+    btn.disabled=false; btn.textContent='🔌 Send Test Result to Sheet';
+    if(result.status==='success'){
+      res.className='conn-result show ok';
+      res.innerHTML='✓ Connection successful! Test row saved to Google Sheet.<br><small>Score: '+result.totalScore+'/30 ('+result.percentage+'%) · Band: '+result.band+'</small><br><small style="color:var(--muted)">Delete the "🔧 Connection Test" row from the sheet.</small>';
     } else {
-      res.className = 'conn-result show err';
-      res.innerHTML = '✗ Server returned error: ' + (result.message || 'Unknown') + '<br><small>Check the Apps Script logs for details.</small>';
+      res.className='conn-result show err';
+      res.textContent='✗ '+( result.message||'Unknown error');
     }
   };
-  xhr.onerror = function() {
-    btn.disabled = false;
-    btn.textContent = '🔌 Send Test Result to Sheet';
-    res.className = 'conn-result show err';
-    res.textContent = '✗ Network error. Check internet connection.';
+
+  const script=document.createElement('script');
+  script.id='ace-conn-jsonp';
+  script.src=url+'?data='+encodeURIComponent(dummy)+'&callback='+cbName;
+  script.onerror=function(){
+    cleanup();
+    btn.disabled=false; btn.textContent='🔌 Send Test Result to Sheet';
+    res.className='conn-result show err'; res.textContent='✗ Network error.';
   };
-  xhr.ontimeout = function() {
-    btn.disabled = false;
-    btn.textContent = '🔌 Send Test Result to Sheet';
-    res.className = 'conn-result show err';
-    res.textContent = '✗ Request timed out. Check the Apps Script URL.';
-  };
-  xhr.send();
+  document.head.appendChild(script);
 }
 
 function changeAdminPassword(currentPwd, newPwd) {
@@ -1541,8 +1511,6 @@ function sendToServer(timeTaken){
 
 function doFetch(){
   const url = SHEET_URL_VAL();
-
-  // Live counter so user sees progress
   let secs = 0;
   if(ST._countInterval) clearInterval(ST._countInterval);
   ST._countInterval = setInterval(()=>{
@@ -1551,36 +1519,37 @@ function doFetch(){
     if(el) el.textContent = 'Submitting and scoring... (' + secs + 's)';
   }, 1000);
   showSaveStatus('saving', 'Submitting and scoring... (0s)');
-
   function done(){ clearInterval(ST._countInterval); }
 
-  // Apps Script redirects POST→GET and loses the body.
-  // Reliable fix: send payload as a GET parameter — Apps Script reads via e.parameter.data
-  const encoded = encodeURIComponent(ST._payload);
-  const getUrl  = url + '?data=' + encoded;
-
-  const xhr = new XMLHttpRequest();
-  xhr.open('GET', getUrl, true);
-  xhr.timeout = 45000;
-
-  xhr.onload = function(){
+  // JSONP — bypasses CORS, works from any origin including GitHub Pages
+  const cbName = 'aceTestCb_' + Date.now();
+  const timeoutId = setTimeout(function(){
+    cleanup();
     done();
-    let result;
-    try { result = JSON.parse(xhr.responseText); }
-    catch(e){
-      showServerError(
-        'Bad response from server (HTTP ' + xhr.status + ').' +
-        '\n\nRaw: ' + xhr.responseText.substring(0, 150) +
-        '\n\nFix: Re-deploy Apps Script as Web App → Execute as Me → Anyone can access.'
-      ); return;
-    }
-    if(result.status === 'success'){ showResults(result); }
-    else { showServerError('Server error: ' + (result.message || 'Unknown')); }
+    showServerError('Request timed out (45s). Check Apps Script URL in Admin → Settings.');
+  }, 45000);
+
+  function cleanup(){
+    clearTimeout(timeoutId);
+    delete window[cbName];
+    const old = document.getElementById('ace-test-jsonp');
+    if(old) old.parentNode.removeChild(old);
+  }
+
+  window[cbName] = function(result){
+    cleanup(); done();
+    if(result.status==='success'){ showResults(result); }
+    else { showServerError('Server error: ' + (result.message||'Unknown')); }
   };
 
-  xhr.onerror   = function(){ done(); showServerError('Network error. Check internet connection.'); };
-  xhr.ontimeout = function(){ done(); showServerError('Timed out (45s). Check Apps Script URL in Admin → Settings.'); };
-  xhr.send();
+  const script = document.createElement('script');
+  script.id  = 'ace-test-jsonp';
+  script.src = url + '?data=' + encodeURIComponent(ST._payload) + '&callback=' + cbName;
+  script.onerror = function(){
+    cleanup(); done();
+    showServerError('Network error. Check internet connection.');
+  };
+  document.head.appendChild(script);
 }
 function showServerError(msg){
   document.getElementById('score-circle').style.visibility='visible';
